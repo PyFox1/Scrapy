@@ -7,6 +7,10 @@ from cheetah_server.server import create_app, db
 
 def modify_item(item):
 
+    # modify item
+    ##############
+
+    #date
     if '-' in item['date']:
         splitted_dates = item['date'].split()
         date2 = datetime.datetime.strptime(splitted_dates[2], '%d.%m.%y')
@@ -16,7 +20,7 @@ def modify_item(item):
     else:
         item['date'] = [datetime.datetime.strptime(item['date'],  '%d.%m.%y')]
 
-
+    #distance
     distance = []
     for element in item['event']:
         if element == 'Marathon':
@@ -25,28 +29,38 @@ def modify_item(item):
             distance.append(21.0975)
         elif element == '10 Km':
             distance.append(10)
-
     item['distance'] = distance
 
-    test = item['country_list']
-
-    for country in item['country_list']:
-        if country.strip() in ["Deutschland", "Österreich", "Schweiz"]:
-            item['country'] = country
-
-    # modifiy zip and city
+    #zip city, country
     location = item['location']
     if str(location).strip():
-        plz_ger = re.compile(r'[0-9]+').findall(str(location))
-        plz_ger1 = re.compile(r'[0]{1}[1-9]{1}[0-9]{3}').findall(str(location))
-        plz_ger2 = re.compile(r'[1-9]{1}[0-9]{1}[0-9]{3}').findall(str(location))
-        item['zip'] = int(plz_ger[0])
+        #zip
+        zip = re.compile(r'[0-9]+').findall(str(location))
+        item['zip'] = int(zip[0])
 
-        location = str(location).replace(")", "").replace("(", "").replace(",", "").replace("'", "")
+        #city
+        location = str(location).replace(")", "")\
+                                .replace("(", "")\
+                                .replace(",", "")\
+                                .replace("'", "")
         item['city'] = re.compile(r'(([a-zäöüß]+\s?)+)$', re.IGNORECASE).search(location).group()
 
+        #country
+        country = re.compile(r'^((CH)|(A))(\s)', re.IGNORECASE | re.VERBOSE).search(str(location)).group(1)
+        for element in item['address_list']:
+            if element.strip() in ["Deutschland", "Österreich", "Schweiz"]:
+                item['country'] = element
+            elif country == "A":
+                item['country'] = "Österreich"
+            elif country == "CH":
+                item['country'] = "Schweiz"
+
+
+
+    # only workaround, relational models neccessary
     item['event'] = ';'.join(item['event'])
     item['name'] = ';'.join(item['name'])
+    item['distance'] = ';'.join(item['distance'])
 
     run_scraped = ScrapedRun(**item)
     app = create_app()
@@ -55,3 +69,4 @@ def modify_item(item):
     db.session.commit()
 
     return item
+
