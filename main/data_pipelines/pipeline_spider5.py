@@ -7,60 +7,69 @@ from cheetah_server.server import create_app, db
 
 def modify_item(item):
 
-    # modify item
-    ##############
-
     #date
     if '-' in item['date']:
         splitted_dates = item['date'].split()
         date2 = datetime.datetime.strptime(splitted_dates[2], '%d.%m.%y')
-        day_date1 = int(splitted_dates[0].replace('.', ''))
-        date1 = datetime.datetime(date2.year, date2.month, day_date1)
-        item['date'] = [date1, date2]
+        item['date'] = date2
     else:
-        item['date'] = [datetime.datetime.strptime(item['date'],  '%d.%m.%y')]
+        item['date'] = datetime.datetime.strptime(item['date'],  '%d.%m.%y')
 
-    #distance
-    distance = []
+    #distances
+    distances = []
     for element in item['event']:
         if element == 'Marathon':
-            distance.append(42.195)
+            distances.append(42.195)
         elif element == 'Halbmarathon':
-            distance.append(21.0975)
+            distances.append(21.0975)
         elif element == '10 Km':
-            distance.append(10)
-    item['distance'] = distance
+            distances.append(10)
+    item['distances'] = distances
 
-    #zip city, country
+    #zip_code, city, country
     location = item['location']
     if str(location).strip():
-        #zip
-        zip = re.compile(r'[0-9]+').findall(str(location))
-        item['zip'] = int(zip[0])
+        #zip_code
+        zip_code = re.compile(r'[0-9]+').findall(str(location))
+
+        item['zip_code'] = int(zip_code[0]) if zip_code else ''
 
         #city
         location = str(location).replace(")", "")\
                                 .replace("(", "")\
                                 .replace(",", "")\
                                 .replace("'", "")
-        item['city'] = re.compile(r'(([a-zäöüß]+\s?)+)$', re.IGNORECASE).search(location).group()
+        city_group = re.compile(r'(([a-zäöüß]+\s?)+)$', re.IGNORECASE).search(location)
+        item['city'] = city_group.group() if city_group else ''
+
 
         #country
-        country = re.compile(r'^((CH)|(A))(\s)', re.IGNORECASE | re.VERBOSE).search(str(location)).group(1)
         for element in item['address_list']:
             if element.strip() in ["Deutschland", "Österreich", "Schweiz"]:
                 item['country'] = element
-            elif country == "A":
-                item['country'] = "Österreich"
-            elif country == "CH":
-                item['country'] = "Schweiz"
 
+        if 'country' not in item:
+            country_group = re.compile(r'^((CH)|(A))(\s)', re.IGNORECASE | re.VERBOSE).search(str(location))
+            if country_group:
+                country = country_group.group(1)
+                if country == "A":
+                    item['country'] = "Österreich"
+                elif country == "CH":
+                    item['country'] = "Schweiz"
+            else:
+                item['country'] = ''
 
+    # add source
+    item['source'] = 'spider5'
 
     # only workaround, relational models neccessary
     item['event'] = ';'.join(item['event'])
     item['name'] = ';'.join(item['name'])
-    item['distance'] = ';'.join(item['distance'])
+    item['distances'] = ';'.join([str(item) for item in item['distances']])
+
+    item.pop('location')
+    item.pop('address_list')
+    item.pop('event')
 
     run_scraped = ScrapedRun(**item)
     app = create_app()
@@ -69,4 +78,3 @@ def modify_item(item):
     db.session.commit()
 
     return item
-
